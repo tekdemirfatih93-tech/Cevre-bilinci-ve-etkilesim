@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { useAuth } from "@/app/auth/context"
+import { improveText } from "@/lib/ai-helper"
 
 interface SupportMessage {
   id: string
@@ -21,12 +22,36 @@ interface ActiveAdmin {
 export function LiveSupportChat() {
   const { user } = useAuth()
   const [isOpen, setIsOpen] = useState(false)
-  const [messages, setMessages] = useState<SupportMessage[]>([
+  const [activeMode, setActiveMode] = useState<"community" | "support">("community")
+  const [communityMessages, setCommunityMessages] = useState<SupportMessage[]>([
+    {
+      id: "1",
+      sender: "Sistem",
+      senderType: "bot",
+      text: "Canlı Sohbet'e hoşgeldiniz! Diğer kullanıcılarla burada sohbet edebilirsiniz.",
+      timestamp: "09:00",
+    },
+    {
+      id: "2",
+      sender: "Ahmet",
+      senderType: "user",
+      text: "Bugün orman temizliği etkinliğine kim geliyor?",
+      timestamp: "09:15",
+    },
+    {
+      id: "3",
+      sender: "Ayşe",
+      senderType: "user",
+      text: "Ben gelicem! Saat kaçta başlıyor?",
+      timestamp: "09:20",
+    },
+  ])
+  const [supportMessages, setSupportMessages] = useState<SupportMessage[]>([
     {
       id: "1",
       sender: "Bot",
       senderType: "bot",
-      text: "Hoşgeldiniz! Sizi nasıl yardımcı olabilirim?",
+      text: "Hoşgeldiniz! Size nasıl yardımcı olabilirim?",
       timestamp: "10:00",
     },
   ])
@@ -60,18 +85,31 @@ export function LiveSupportChat() {
     return "Maalesef bu konuda sizi yardımcı olamıyorum. Lütfen bir adminle konuşmak isterseniz yukarıdaki listeden seçim yapın."
   }
 
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
     if (!inputValue.trim()) return
+
+    // Metni otomatik iyileştir
+    const improvedText = await improveText({
+      text: inputValue,
+      tone: "friendly",
+    })
 
     const userMessage: SupportMessage = {
       id: String(Date.now()),
       sender: user?.name || "Siz",
       senderType: "user",
-      text: inputValue,
+      text: improvedText,
       timestamp: new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" }),
     }
 
-    setMessages([...messages, userMessage])
+    if (activeMode === "community") {
+      setCommunityMessages([...communityMessages, userMessage])
+      setInputValue("")
+      return
+    }
+
+    const messages = supportMessages
+    setSupportMessages([...messages, userMessage])
 
     if (connectedAdmin) {
       const adminMessage: SupportMessage = {
@@ -94,16 +132,19 @@ export function LiveSupportChat() {
         timestamp: new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" }),
       }
       setTimeout(() => {
-        setMessages((prev) => [...prev, botMessage])
+        setSupportMessages((prev) => [...prev, botMessage])
       }, 500)
     }
 
     setInputValue("")
   }
 
+  const messages = activeMode === "community" ? communityMessages : supportMessages
+
   const handleConnectAdmin = (admin: ActiveAdmin) => {
     setConnectedAdmin(admin)
     setShowAdminsList(false)
+    setActiveMode("support")
     const systemMessage: SupportMessage = {
       id: String(Date.now()),
       sender: "Sistem",
@@ -111,19 +152,20 @@ export function LiveSupportChat() {
       text: `${admin.name} ile bağlantı kuruldu.`,
       timestamp: new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" }),
     }
-    setMessages((prev) => [...prev, systemMessage])
+    setSupportMessages((prev) => [...prev, systemMessage])
   }
 
   const handleDisconnectAdmin = () => {
     setConnectedAdmin(null)
+    setActiveMode("community")
     const systemMessage: SupportMessage = {
       id: String(Date.now()),
       sender: "Sistem",
       senderType: "bot",
-      text: "Admin ile bağlantı kesildi. Bot size tekrar yardım etmeye hazır.",
+      text: "Admin ile bağlantı kesildi. Ortak sohbete döndünüz.",
       timestamp: new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" }),
     }
-    setMessages((prev) => [...prev, systemMessage])
+    setSupportMessages((prev) => [...prev, systemMessage])
   }
 
   if (!isOpen) {
@@ -131,7 +173,7 @@ export function LiveSupportChat() {
       <button
         onClick={() => setIsOpen(true)}
         className="fixed bottom-20 right-4 w-14 h-14 bg-primary text-primary-foreground rounded-full flex items-center justify-center shadow-lg hover:scale-110 transition-transform z-40"
-        aria-label="Destek sohbetini aç"
+        aria-label="Canlı sohbeti aç"
       >
         💬
       </button>
@@ -141,16 +183,42 @@ export function LiveSupportChat() {
   return (
     <div className="fixed bottom-20 right-4 w-80 h-96 bg-card border border-border rounded-2xl shadow-xl flex flex-col z-50">
       {/* Header */}
-      <div className="p-4 border-b border-border flex items-center justify-between">
-        <div>
-          <h3 className="font-semibold text-sm">Canlı Destek</h3>
-          <p className="text-xs text-muted-foreground">
-            {connectedAdmin ? `${connectedAdmin.name} ile sohbet` : "Bot Asistanı"}
-          </p>
+      <div className="p-4 border-b border-border">
+        <div className="flex items-center justify-between mb-2">
+          <div>
+            <h3 className="font-semibold text-sm">Canlı Sohbet</h3>
+            <p className="text-xs text-muted-foreground">
+              {activeMode === "community" ? "Ortak Sohbet Alanı" : connectedAdmin ? `${connectedAdmin.name} ile destek` : "Bot Asistanı"}
+            </p>
+          </div>
+          <button onClick={() => setIsOpen(false)} className="text-lg hover:text-destructive transition-colors">
+            ✕
+          </button>
         </div>
-        <button onClick={() => setIsOpen(false)} className="text-lg hover:text-destructive transition-colors">
-          ✕
-        </button>
+        
+        {/* Mode Switcher */}
+        <div className="flex gap-2">
+          <button
+            onClick={() => setActiveMode("community")}
+            className={`flex-1 px-3 py-1.5 rounded text-xs font-semibold transition-colors ${
+              activeMode === "community"
+                ? "bg-primary text-primary-foreground"
+                : "bg-secondary/50 text-muted-foreground hover:bg-secondary"
+            }`}
+          >
+            👥 Ortak Sohbet
+          </button>
+          <button
+            onClick={() => setActiveMode("support")}
+            className={`flex-1 px-3 py-1.5 rounded text-xs font-semibold transition-colors ${
+              activeMode === "support"
+                ? "bg-primary text-primary-foreground"
+                : "bg-secondary/50 text-muted-foreground hover:bg-secondary"
+            }`}
+          >
+            🎫 Destek
+          </button>
+        </div>
       </div>
 
       {/* Messages */}
@@ -177,7 +245,7 @@ export function LiveSupportChat() {
       </div>
 
       {/* Admin List */}
-      {showAdminsList && !connectedAdmin && (
+      {showAdminsList && !connectedAdmin && activeMode === "support" && (
         <div className="p-3 border-t border-border bg-secondary/20 space-y-2">
           <p className="text-xs font-semibold mb-2">Aktif Adminler:</p>
           {activeAdmins.map((admin) => (
@@ -212,21 +280,21 @@ export function LiveSupportChat() {
 
       {/* Input Area */}
       <div className="p-3 border-t border-border flex gap-2">
-        {!connectedAdmin ? (
+        {!connectedAdmin && activeMode === "support" ? (
           <button
             onClick={() => setShowAdminsList(!showAdminsList)}
             className="px-3 py-2 bg-accent/10 text-accent rounded text-xs font-semibold hover:bg-accent/20 transition-colors flex-shrink-0"
           >
             Admin
           </button>
-        ) : (
+        ) : connectedAdmin ? (
           <button
             onClick={handleDisconnectAdmin}
             className="px-3 py-2 bg-destructive/10 text-destructive rounded text-xs font-semibold hover:bg-destructive/20 transition-colors flex-shrink-0"
           >
             Kapat
           </button>
-        )}
+        ) : null}
         <input
           type="text"
           value={inputValue}

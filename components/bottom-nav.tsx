@@ -8,7 +8,6 @@ interface BottomNavProps {
 const navItems = [
   { id: "home", label: "Anasayfa", icon: "🏠" },
   { id: "map", label: "Harita", icon: "🗺️" },
-  { id: "share", label: "Paylaş", icon: "📸" },
   { id: "events", label: "Etkinlik", icon: "📅" },
   { id: "profile", label: "Profil", icon: "👤" },
 ]

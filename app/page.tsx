@@ -3,7 +3,6 @@
 import { AppLayout } from "@/components/app-layout"
 import { HomePage } from "@/components/pages/home-page"
 import { MapPage } from "@/components/pages/map-page"
-import { SharePage } from "@/components/pages/share-page"
 import { EventsPage } from "@/components/pages/events-page"
 import { ProfilePage } from "@/components/pages/profile-page"
 import { LoginPage } from "@/components/auth-pages/login-page"
@@ -41,8 +40,6 @@ export default function Home() {
         return <HomePage />
       case "map":
         return <MapPage />
-      case "share":
-        return <SharePage />
       case "events":
         return <EventsPage />
       case "profile":

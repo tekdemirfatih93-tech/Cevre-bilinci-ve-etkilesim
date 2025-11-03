@@ -1,6 +1,8 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
+import { improveText } from "@/lib/ai-helper"
+import { TranslateButton } from "@/components/translate-button"
 
 
 interface Comment {
@@ -28,6 +30,8 @@ export function HomePage() {
   const [showComments, setShowComments] = useState<string | null>(null)
   const [comments, setComments] = useState<Record<string, Comment[]>>({})
   const [newComment, setNewComment] = useState("")
+  const [translatedPostContent, setTranslatedPostContent] = useState<Record<string, string>>({})
+  const [translatedCommentText, setTranslatedCommentText] = useState<Record<string, string>>({})
   const [posts, setPosts] = useState<Post[]>([
     {
       id: "1",
@@ -51,9 +55,24 @@ export function HomePage() {
       comments: 12,
       location: "Marmara Nehri, İstanbul",
     },
+    {
+      id: "3",
+      author: "John Green",
+      content: "Amazing nature preservation work happening here. We need more people to join the environmental cause!",
+      image: "/cleanup.jpg",
+      timestamp: "1 saat önce",
+      likes: 18,
+      isLiked: false,
+      comments: 3,
+      location: "Green Park, Istanbul",
+    },
   ])
   const [showPostForm, setShowPostForm] = useState(false)
   const [newPost, setNewPost] = useState("")
+  const [postPhoto, setPostPhoto] = useState<string | null>(null)
+  const [isAnonymous, setIsAnonymous] = useState(true)
+  const cameraRef = useRef<HTMLInputElement>(null)
+  const galleryRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     // Mock nearby areas
@@ -81,17 +100,30 @@ export function HomePage() {
           timestamp: "30 dk önce",
           likes: 3,
         },
+        {
+          id: "3",
+          author: "Sarah Wilson",
+          text: "This looks absolutely beautiful! What a wonderful place to visit.",
+          timestamp: "15 dk önce",
+          likes: 7,
+        },
       ],
     })
   }, [])
 
 
-  const handleCommentSubmit = (postId: string) => {
+  const handleCommentSubmit = async (postId: string) => {
     if (newComment.trim()) {
+      // Yorumu otomatik iyileştir
+      const improvedComment = await improveText({
+        text: newComment,
+        tone: "friendly",
+      })
+
       const newCommentObj: Comment = {
         id: String(Date.now()),
         author: "Benim Adım",
-        text: newComment,
+        text: improvedComment,
         timestamp: "az önce",
         likes: 0,
       }
@@ -117,12 +149,30 @@ export function HomePage() {
     alert("Paylaşım başarıyla paylaşıldı!")
   }
 
-  const handleCreatePost = () => {
+  const handlePhotoCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        setPostPhoto(reader.result as string)
+      }
+      reader.readAsDataURL(file)
+    }
+  }
+
+  const handleCreatePost = async () => {
     if (newPost.trim()) {
+      // Metni otomatik iyileştir
+      const improvedContent = await improveText({
+        text: newPost,
+        tone: "friendly",
+      })
+
       const post: Post = {
         id: String(Date.now()),
-        author: "Siz",
-        content: newPost,
+        author: isAnonymous ? "Anonim Kullanıcı" : "Siz",
+        content: improvedContent,
+        image: postPhoto || undefined,
         timestamp: "az önce",
         likes: 0,
         isLiked: false,
@@ -131,6 +181,7 @@ export function HomePage() {
       }
       setPosts([post, ...posts])
       setNewPost("")
+      setPostPhoto(null)
       setShowPostForm(false)
     }
   }
@@ -150,22 +201,89 @@ export function HomePage() {
       {/* Post Creation Form */}
       {showPostForm && (
         <div className="bg-card rounded-2xl p-4 border border-border space-y-3">
+          <h4 className="font-semibold text-sm">📸 Yeni Paylaşım</h4>
+
+          {/* Photo Preview */}
+          {postPhoto ? (
+            <div className="relative">
+              <img
+                src={postPhoto}
+                alt="Paylaşılacak fotoğraf"
+                className="w-full rounded-xl object-cover max-h-64"
+              />
+              <button
+                onClick={() => setPostPhoto(null)}
+                className="absolute top-2 right-2 bg-background/80 backdrop-blur-sm rounded-full p-2 hover:bg-background transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+          ) : (
+            <div className="bg-background rounded-xl p-6 border border-dashed border-border flex flex-col items-center justify-center gap-2">
+              <span className="text-4xl">📷</span>
+              <p className="text-xs text-muted-foreground text-center">Fotoğraf seçin (opsiyonel)</p>
+            </div>
+          )}
+
+          {/* Camera/Gallery Buttons */}
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => cameraRef.current?.click()}
+              className="bg-primary text-primary-foreground rounded-lg py-2 font-semibold text-xs hover:bg-primary/90 transition-colors flex items-center justify-center gap-1"
+            >
+              📷 Kamera
+            </button>
+            <button
+              onClick={() => galleryRef.current?.click()}
+              className="bg-secondary text-foreground rounded-lg py-2 font-semibold text-xs hover:bg-secondary/80 transition-colors flex items-center justify-center gap-1"
+            >
+              🖼️ Galeri
+            </button>
+            <input
+              ref={cameraRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={handlePhotoCapture}
+              className="hidden"
+            />
+            <input ref={galleryRef} type="file" accept="image/*" onChange={handlePhotoCapture} className="hidden" />
+          </div>
+
           <textarea
             value={newPost}
             onChange={(e) => setNewPost(e.target.value)}
             placeholder="Çevre hakkında düşüncelerinizi paylaşın..."
             className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary text-foreground placeholder-muted-foreground resize-none"
-            rows={4}
+            rows={3}
           />
+
+          {/* Anonymous Toggle */}
+          <div className="flex items-center justify-between p-2 bg-background rounded-lg">
+            <div className="flex items-center gap-2">
+              🔒<span className="text-xs font-medium">Anonim Paylaş</span>
+            </div>
+            <input
+              type="checkbox"
+              checked={isAnonymous}
+              onChange={(e) => setIsAnonymous(e.target.checked)}
+              className="w-4 h-4 rounded accent-primary"
+            />
+          </div>
+
           <div className="flex gap-2">
             <button
               onClick={handleCreatePost}
-              className="flex-1 bg-primary text-primary-foreground rounded-lg py-2 text-xs font-semibold hover:bg-primary/90 transition-colors"
+              disabled={!newPost.trim()}
+              className="flex-1 bg-primary text-primary-foreground rounded-lg py-2 text-xs font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Paylaş
+              📤 Paylaş
             </button>
             <button
-              onClick={() => setShowPostForm(false)}
+              onClick={() => {
+                setShowPostForm(false)
+                setPostPhoto(null)
+              }}
               className="flex-1 bg-background border border-border rounded-lg py-2 text-xs font-semibold hover:bg-secondary/30 transition-colors"
             >
               İptal
@@ -210,7 +328,21 @@ export function HomePage() {
 
               {/* Post Content */}
               <div className="px-3">
-                <p className="text-sm text-foreground mb-2">{post.content}</p>
+                <div className="flex items-start gap-2 mb-2">
+                  <p className="text-sm text-foreground flex-1">
+                    {translatedPostContent[post.id] || post.content}
+                  </p>
+                  <TranslateButton 
+                    text={post.content} 
+                    compact={true}
+                    onTranslate={(translated) => {
+                      setTranslatedPostContent(prev => ({
+                        ...prev,
+                        [post.id]: translated
+                      }))
+                    }}
+                  />
+                </div>
                 <p className="text-xs text-muted-foreground mb-2">📍 {post.location}</p>
               </div>
 
@@ -262,7 +394,21 @@ export function HomePage() {
                   <p className="font-semibold text-xs">{comment.author}</p>
                   <p className="text-xs text-muted-foreground">{comment.timestamp}</p>
                 </div>
-                <p className="text-xs text-foreground mb-2">{comment.text}</p>
+                <div className="flex items-start gap-2 mb-2">
+                  <p className="text-xs text-foreground flex-1">
+                    {translatedCommentText[comment.id] || comment.text}
+                  </p>
+                  <TranslateButton 
+                    text={comment.text} 
+                    compact={true}
+                    onTranslate={(translated) => {
+                      setTranslatedCommentText(prev => ({
+                        ...prev,
+                        [comment.id]: translated
+                      }))
+                    }}
+                  />
+                </div>
                 <button className="text-xs text-muted-foreground hover:text-primary transition-colors">
                   ❤ {comment.likes}
                 </button>

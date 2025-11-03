@@ -3,6 +3,10 @@
 import { useState } from "react"
 import { useAuth } from "@/app/auth/context"
 import { useRouter } from "next/navigation"
+import { AdminLiveChatPanel } from "@/components/admin-live-chat-panel"
+import { AdminTicketManagement } from "@/components/admin-ticket-management"
+import { AIResponseEditor } from "@/components/ai-response-editor"
+import { TranslateButton } from "@/components/translate-button"
 
 interface AdminStats {
   totalUsers: number
@@ -48,6 +52,7 @@ interface Complaint {
   status: "Pending" | "In Review" | "Resolved" | "Rejected"
   date: string
   attachments: number
+  attachmentFiles?: { type: "photo" | "video"; url: string; name: string }[]
   response?: string
   respondedBy?: string
   respondedAt?: string
@@ -174,6 +179,10 @@ export default function AdminPanel() {
       status: "Pending",
       date: "5 gün önce",
       attachments: 2,
+      attachmentFiles: [
+        { type: "photo", url: "https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?w=400", name: "orman-kesim-1.jpg" },
+        { type: "photo", url: "https://images.unsplash.com/photo-1473448912268-2022ce9509d8?w=400", name: "orman-kesim-2.jpg" },
+      ],
     },
     {
       id: "CMP-002",
@@ -186,6 +195,9 @@ export default function AdminPanel() {
       status: "In Review",
       date: "10 gün önce",
       attachments: 1,
+      attachmentFiles: [
+        { type: "photo", url: "https://images.unsplash.com/photo-1621451537084-482c73073a0f?w=400", name: "su-kirliligi.jpg" },
+      ],
       response: "Şikayetiniz inceleniyor. Yarın saha kontrolü yapılacaktır.",
       respondedBy: "admin@cevre.com",
       respondedAt: "8 gün önce",
@@ -201,9 +213,29 @@ export default function AdminPanel() {
       status: "Resolved",
       date: "20 gün önce",
       attachments: 3,
+      attachmentFiles: [
+        { type: "photo", url: "https://images.unsplash.com/photo-1611273426858-450d8e3c9fce?w=400", name: "fabrika-duman-1.jpg" },
+        { type: "photo", url: "https://images.unsplash.com/photo-1621451537084-482c73073a0f?w=400", name: "fabrika-duman-2.jpg" },
+        { type: "video", url: "https://www.w3schools.com/html/mov_bbb.mp4", name: "fabrika-video.mp4" },
+      ],
       response: "Fabrika denetlendi ve gerekli yaptırımlar uygulandı. Teşekkürler.",
       respondedBy: "admin@cevre.com",
       respondedAt: "15 gün önce",
+    },
+    {
+      id: "CMP-004",
+      userId: "USR-006",
+      userName: "John Smith",
+      userEmail: "john@example.com",
+      title: "Illegal Waste Dumping",
+      description: "There is illegal waste dumping happening near the river. Large amounts of plastic and chemical waste are being thrown into the water. This is causing serious environmental damage and affecting local wildlife.",
+      category: "Waste",
+      status: "Pending",
+      date: "2 gün önce",
+      attachments: 1,
+      attachmentFiles: [
+        { type: "photo", url: "https://images.unsplash.com/photo-1621451537084-482c73073a0f?w=400", name: "waste-dump.jpg" },
+      ],
     },
   ])
 
@@ -238,6 +270,7 @@ export default function AdminPanel() {
 
   const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(null)
   const [complaintResponse, setComplaintResponse] = useState("")
+  const [translatedComplaintDescriptions, setTranslatedComplaintDescriptions] = useState<Record<string, string>>({})
 
   if (!user?.isAdmin) {
     return (
@@ -486,6 +519,16 @@ export default function AdminPanel() {
             }`}
           >
             💬 Canlı Destek
+          </button>
+          <button
+            onClick={() => setActiveTab("tickets")}
+            className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+              activeTab === "tickets"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            🎫 Destek Talepleri
           </button>
           <button
             onClick={() => setActiveTab("admins")}
@@ -803,9 +846,62 @@ export default function AdminPanel() {
                   </div>
 
                   <div className="mb-3 p-3 bg-background rounded-lg">
-                    <p className="text-xs font-semibold text-muted-foreground mb-1">Açıklama:</p>
-                    <p className="text-sm">{complaint.description}</p>
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <p className="text-xs font-semibold text-muted-foreground">Açıklama:</p>
+                      <TranslateButton 
+                        text={complaint.description} 
+                        compact
+                        onTranslate={(translated) => {
+                          setTranslatedComplaintDescriptions(prev => ({
+                            ...prev,
+                            [complaint.id]: translated
+                          }))
+                        }}
+                      />
+                    </div>
+                    <p className="text-sm break-words">{translatedComplaintDescriptions[complaint.id] || complaint.description}</p>
                   </div>
+
+                  {/* Attachments */}
+                  {complaint.attachmentFiles && complaint.attachmentFiles.length > 0 && (
+                    <div className="mb-3">
+                      <p className="text-xs font-semibold text-muted-foreground mb-2">📎 Ekler ({complaint.attachmentFiles.length}):</p>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                        {complaint.attachmentFiles.map((file, idx) => (
+                          <div key={idx} className="relative group">
+                            {file.type === "photo" ? (
+                              <div className="relative aspect-video rounded-lg overflow-hidden border border-border">
+                                <img
+                                  src={file.url}
+                                  alt={file.name}
+                                  className="w-full h-full object-cover"
+                                />
+                                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                  <a
+                                    href={file.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-white text-xs bg-primary px-2 py-1 rounded"
+                                  >
+                                    🔍 Büyüt
+                                  </a>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="relative aspect-video rounded-lg overflow-hidden border border-border">
+                                <video
+                                  src={file.url}
+                                  controls
+                                  className="w-full h-full object-cover"
+                                />
+                              </div>
+                            )}
+                            <p className="text-xs text-muted-foreground mt-1 truncate">{file.name}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {complaint.response && (
                     <div className="mb-3 p-3 bg-primary/5 border border-primary/20 rounded-lg">
@@ -818,27 +914,18 @@ export default function AdminPanel() {
 
                   {selectedComplaint?.id === complaint.id ? (
                     <div className="space-y-2">
-                      <textarea
+                      <AIResponseEditor
                         value={complaintResponse}
-                        onChange={(e) => setComplaintResponse(e.target.value)}
-                        placeholder="Yanıtınızı yazın..."
-                        className="w-full bg-background border border-border rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary text-foreground placeholder-muted-foreground resize-none"
-                        rows={4}
+                        onChange={setComplaintResponse}
+                        onSend={() => handleComplaintResponse(complaint.id)}
+                        placeholder="Şikayet yanıtınızı yazın..."
                       />
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => handleComplaintResponse(complaint.id)}
-                          className="flex-1 bg-primary text-primary-foreground text-xs font-semibold px-3 py-2 rounded-lg hover:bg-primary/90"
-                        >
-                          Gönder
-                        </button>
-                        <button
-                          onClick={() => setSelectedComplaint(null)}
-                          className="flex-1 bg-background border border-border text-xs font-semibold px-3 py-2 rounded-lg hover:bg-secondary/30"
-                        >
-                          İptal
-                        </button>
-                      </div>
+                      <button
+                        onClick={() => setSelectedComplaint(null)}
+                        className="w-full bg-background border border-border text-xs font-semibold px-3 py-2 rounded-lg hover:bg-secondary/30"
+                      >
+                        İptal
+                      </button>
                     </div>
                   ) : (
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
@@ -988,109 +1075,18 @@ export default function AdminPanel() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {/* Active Chats */}
-              <div className="space-y-3">
-                <h4 className="font-semibold text-sm">Aktif Sohbetler</h4>
-                {[
-                  { id: "1", user: "Ahmet Yılmaz", status: "waiting", lastMessage: "Merhaba, yardım lâzım", time: "2 dk önce" },
-                  { id: "2", user: "Ayşe Demir", status: "active", lastMessage: "Teşekkürler", time: "5 dk önce" },
-                  { id: "3", user: "Mehmet Kaya", status: "waiting", lastMessage: "Şikayet nasıl yapabilirim?", time: "8 dk önce" },
-                ].map((chat) => (
-                  <div key={chat.id} className="bg-card rounded-xl p-3 border border-border hover:border-primary/50 transition-colors cursor-pointer">
-                    <div className="flex items-start justify-between mb-2">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <p className="text-sm font-semibold">{chat.user}</p>
-                          <span
-                            className={`w-2 h-2 rounded-full ${
-                              chat.status === "waiting" ? "bg-yellow-500 animate-pulse" : "bg-green-500"
-                            }`}
-                          ></span>
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-1">{chat.lastMessage}</p>
-                      </div>
-                      <span className="text-xs text-muted-foreground">{chat.time}</span>
-                    </div>
-                    <button className="w-full mt-2 bg-primary/10 text-primary py-1.5 rounded text-xs font-semibold hover:bg-primary/20 transition-colors">
-                      Yanıtla
-                    </button>
-                  </div>
-                ))}
-              </div>
+            <AdminLiveChatPanel />
+          </div>
+        )}
 
-              {/* Chat Window */}
-              <div className="bg-card rounded-xl border border-border overflow-hidden flex flex-col h-96">
-                {/* Chat Header */}
-                <div className="p-3 border-b border-border">
-                  <p className="text-sm font-semibold">Ahmet Yılmaz ile sohbet</p>
-                  <p className="text-xs text-muted-foreground">ahmet@example.com</p>
-                </div>
-
-                {/* Messages */}
-                <div className="flex-1 overflow-y-auto p-3 space-y-2 bg-background/50">
-                  <div className="flex justify-start">
-                    <div className="bg-secondary/50 rounded-lg px-3 py-2 max-w-xs">
-                      <p className="text-xs font-semibold text-accent mb-1">Ahmet Yılmaz</p>
-                      <p className="text-sm">Merhaba, yardım lazım</p>
-                      <p className="text-xs text-muted-foreground mt-1">14:30</p>
-                    </div>
-                  </div>
-                  <div className="flex justify-end">
-                    <div className="bg-primary text-primary-foreground rounded-lg px-3 py-2 max-w-xs">
-                      <p className="text-sm">Merhaba! Size nasıl yardımcı olabilirim?</p>
-                      <p className="text-xs opacity-70 mt-1">14:31</p>
-                    </div>
-                  </div>
-                  <div className="flex justify-start">
-                    <div className="bg-secondary/50 rounded-lg px-3 py-2 max-w-xs">
-                      <p className="text-xs font-semibold text-accent mb-1">Ahmet Yılmaz</p>
-                      <p className="text-sm">Şikayet nasıl yapabilirim?</p>
-                      <p className="text-xs text-muted-foreground mt-1">14:32</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Input */}
-                <div className="p-2 border-t border-border flex gap-2">
-                  <input
-                    type="text"
-                    placeholder="Mesaj yazın..."
-                    className="flex-1 bg-background border border-border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary text-foreground placeholder-muted-foreground"
-                  />
-                  <button className="px-3 py-1 bg-primary text-primary-foreground rounded text-xs font-semibold hover:bg-primary/90 transition-colors">
-                    Gönder
-                  </button>
-                </div>
-              </div>
+        {/* Tickets Tab */}
+        {activeTab === "tickets" && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-lg">🎫 Destek Talebi Yönetimi</h3>
             </div>
 
-            {/* Quick Responses */}
-            <div className="bg-card rounded-xl p-4 border border-border">
-              <h4 className="font-semibold text-sm mb-3">Hızlı Yanıtlar</h4>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                {[
-                  "Şikayet için profil > Şikayet kısmını kullanın",
-                  "Etkinliklere katılmak için Etkinlikler sekmesine gidin",
-                  "Konum izni vermek için ayarlarınızı kontrol edin",
-                  "Daha fazla bilgi için bize ulaşın",
-                ].map((response, idx) => (
-                  <button
-                    key={idx}
-                    className="text-left p-2 bg-secondary/30 hover:bg-secondary/50 rounded text-xs transition-colors"
-                  >
-                    {response}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="bg-accent/10 border border-accent/30 rounded-xl p-4">
-              <p className="text-sm font-semibold mb-2">ℹ️ Canlı Destek Bilgisi</p>
-              <p className="text-xs text-muted-foreground">
-                Adminler ve moderatörler kullanıcılarla anlık sohbet edebilir. Yanıt süresi ortalama 2 dakikadır.
-              </p>
-            </div>
+            <AdminTicketManagement />
           </div>
         )}
 

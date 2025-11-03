@@ -2,6 +2,8 @@
 
 import { useState } from "react"
 import { useAuth } from "@/app/auth/context"
+import { UserTickets } from "@/components/user-tickets"
+import { improveText } from "@/lib/ai-helper"
 
 interface Complaint {
   id: string
@@ -158,12 +160,25 @@ export function ProfilePage() {
     setMediaFiles({ ...mediaFiles, video: null })
   }
 
-  const handleSubmitComplaint = () => {
+  const handleSubmitComplaint = async () => {
     if (newComplaint.title && newComplaint.description) {
+      // Başlık ve açıklamayı otomatik iyileştir
+      const improvedTitle = await improveText({
+        text: newComplaint.title,
+        tone: "professional",
+      })
+
+      const improvedDescription = await improveText({
+        text: newComplaint.description,
+        tone: "professional",
+      })
+
       const totalAttachments = mediaFiles.photos.length + (mediaFiles.video ? 1 : 0)
       const complaint: Complaint = {
         id: String(Date.now()),
-        ...newComplaint,
+        title: improvedTitle,
+        description: improvedDescription,
+        category: newComplaint.category,
         status: "Pending",
         date: "az önce",
         attachments: totalAttachments,
@@ -559,6 +574,9 @@ export function ProfilePage() {
           ))}
         </div>
       )}
+
+      {/* Tickets Tab */}
+      {activeTab === "tickets" && <UserTickets />}
 
       {/* Privacy Info */}
       <div className="bg-background rounded-xl p-3 border border-border text-xs text-muted-foreground text-center">
